@@ -1,0 +1,15 @@
+# Datasets and derived tensors — large and fully regenerable
+data/
+features/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Working plan — kept local, not published
+PLAN.md
+
+# macOS
+.DS_Store

@@ -1,0 +1,11 @@
+# Stage 1 dependencies.
+# Loose lower bounds here; exact versions are frozen to requirements.lock.txt
+# after install so the reported results are reproducible.
+
+torch>=2.2
+torchvision>=0.17
+numpy>=1.26
+pandas>=2.2          # results/runs.csv
+matplotlib>=3.8      # all figures
+scikit-learn>=1.4    # t-SNE / PCA for the feature visualisations
+tqdm>=4.66
