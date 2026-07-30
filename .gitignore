@@ -1,6 +1,9 @@
-# Datasets and derived tensors — large and fully regenerable
+# Raw images: 3.5 GB, downloaded automatically by torchvision.
+# Only whoever runs extraction needs them.
 data/
-features/
+
+# features/ is committed on purpose (~48 MB) so the group shares the caches
+# via git pull and nobody else has to download the datasets.
 
 # Python
 __pycache__/
