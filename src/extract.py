@@ -23,10 +23,6 @@ def pick_device() -> torch.device:
     return torch.device("mps" if torch.backends.mps.is_available() else "cpu")
 
 
-def cache_path(dataset: str, encoder: str, split: str):
-    return config.FEATURES / f"{dataset}_{encoder}_{split}.pt"
-
-
 @torch.no_grad()
 def extract_split(model, transform, dataset: str, split: str, device):
     ds = data.load_split(dataset, split, transform=transform, download=False)
@@ -47,7 +43,7 @@ def main(force: bool = False) -> None:
     print(f"device: {device.type}")
 
     for dataset, encoder in config.PIPELINES:
-        paths = {s: cache_path(dataset, encoder, s) for s in data.SPLITS}
+        paths = {s: config.cache_path(dataset, encoder, s) for s in data.SPLITS}
         if not force and all(p.exists() for p in paths.values()):
             print(f"{dataset} / {encoder}: cached, skipping")
             continue

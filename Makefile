@@ -1,4 +1,4 @@
-.PHONY: verify features runs figures all clean
+.PHONY: verify features runs table figures all clean
 
 PYTHON := .venv/bin/python
 
@@ -14,11 +14,15 @@ features:
 runs:
 	$(PYTHON) -m src.train
 
+# M5: aggregate the ledger into the accuracy table.
+table:
+	$(PYTHON) -m src.evaluate
+
 # M6: regenerate every figure from results/runs.csv and the caches.
 figures:
 	$(PYTHON) -m src.figures
 
-all: features runs figures
+all: features runs table figures
 
 # Removes derived artefacts only; never touches data/.
 clean:

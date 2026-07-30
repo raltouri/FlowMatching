@@ -12,6 +12,7 @@ DATA = ROOT / "data"
 FEATURES = ROOT / "features"
 RESULTS = ROOT / "results"
 CKPT = RESULTS / "ckpt"
+CURVES = RESULTS / "curves"
 FIGURES = ROOT / "figures"
 RUNS_CSV = RESULTS / "runs.csv"
 
@@ -52,3 +53,8 @@ AIRCRAFT_BANNER_PX = 20
 # --- Figures ------------------------------------------------------------
 
 VIZ_NUM_CLASSES = 9                     # readable subset for the 2-D projections
+
+
+def cache_path(dataset: str, encoder: str, split: str):
+    """Location of one feature cache."""
+    return FEATURES / f"{dataset}_{encoder}_{split}.pt"
