@@ -218,7 +218,7 @@ def fig_confusion() -> None:
 
     for dataset, (encoder, k, seed) in REPRESENTATIVE.items():
         logits, y = probe_logits(dataset, encoder, k, seed)
-        names = data.class_names(data.load_split(dataset, "test", download=False))
+        names = data.cached_class_names(dataset)
         cm = evaluate.confusion_matrix(logits, y, config.NUM_CLASSES[dataset])
 
         fig, ax = plt.subplots(figsize=(5.4, 4.6))
@@ -267,7 +267,7 @@ def viz_classes(dataset: str) -> np.ndarray:
 
 def fig_feature_projection(dataset: str) -> None:
     classes = viz_classes(dataset)
-    names = data.class_names(data.load_split(dataset, "test", download=False))
+    names = data.cached_class_names(dataset)
     encoders = [e for d, e in config.PIPELINES if d == dataset]
 
     fig, axes = plt.subplots(1, len(encoders), figsize=(5.2 * len(encoders), 4.6))

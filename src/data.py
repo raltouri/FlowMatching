@@ -9,6 +9,7 @@ Run `python -m src.data --verify` to check the splits and the sampler.
 from __future__ import annotations
 
 import argparse
+import json
 
 import numpy as np
 from torchvision import datasets
@@ -58,6 +59,15 @@ def labels(ds) -> np.ndarray:
 def class_names(ds) -> list[str]:
     """Class names in label-index order."""
     return list(ds.classes)
+
+
+def cached_class_names(dataset: str) -> list[str]:
+    """Class names from the sidecar written during extraction.
+
+    The figures label with these rather than reopening the dataset, so anyone
+    holding only the feature caches can regenerate them without the images.
+    """
+    return json.loads(config.classes_path(dataset).read_text())
 
 
 def sample_k_shot(y: np.ndarray, k: int, seed: int) -> np.ndarray:

@@ -58,3 +58,12 @@ VIZ_NUM_CLASSES = 9                     # readable subset for the 2-D projection
 def cache_path(dataset: str, encoder: str, split: str):
     """Location of one feature cache."""
     return FEATURES / f"{dataset}_{encoder}_{split}.pt"
+
+
+def classes_path(dataset: str):
+    """Class names, written at extraction time.
+
+    Kept beside the caches so that everything below the L3 boundary — including
+    the figures, which label axes and legends — works without the images.
+    """
+    return FEATURES / f"{dataset}_classes.json"

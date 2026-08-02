@@ -10,6 +10,7 @@ and never touches a pixel again.
 from __future__ import annotations
 
 import argparse
+import json
 
 import torch
 from torch.utils.data import DataLoader
@@ -43,6 +44,12 @@ def main(force: bool = False) -> None:
     print(f"device: {device.type}")
 
     for dataset, encoder in config.PIPELINES:
+        # Written once per dataset, next to the caches, so the figures never
+        # need to reopen the images just to label an axis.
+        if not config.classes_path(dataset).exists():
+            names = data.class_names(data.load_split(dataset, "test"))
+            config.classes_path(dataset).write_text(json.dumps(names, indent=1))
+
         paths = {s: config.cache_path(dataset, encoder, s) for s in data.SPLITS}
         if not force and all(p.exists() for p in paths.values()):
             print(f"{dataset} / {encoder}: cached, skipping")
