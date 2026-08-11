@@ -11,8 +11,8 @@ __pycache__/
 .venv/
 venv/
 
-# Working plan — kept local, not published
-PLAN.md
+# Working plans — kept local, not published
+PLAN_STAGE*.md
 
 # macOS
 .DS_Store

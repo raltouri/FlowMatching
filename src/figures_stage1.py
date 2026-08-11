@@ -83,8 +83,8 @@ def apply_style() -> None:
 
 
 def save(fig, name: str) -> None:
-    config.FIGURES.mkdir(exist_ok=True)
-    path = config.FIGURES / name
+    config.FIGURES_STAGE1.mkdir(parents=True, exist_ok=True)
+    path = config.FIGURES_STAGE1 / name
     fig.savefig(path, dpi=200, bbox_inches="tight")
     plt.close(fig)
     print(f"  {path.relative_to(config.ROOT)}")
@@ -168,7 +168,7 @@ def fig_loss_curves() -> None:
 
     for ax, (dataset, encoder) in zip(axes, config.PIPELINES):
         curve = json.loads(
-            (config.CURVES / f"{dataset}_{encoder}_K{k}_s{seed}.json").read_text()
+            (config.CURVES / f"{config.run_tag(dataset, encoder, 'linear', k, seed)}.json").read_text()
         )
         epochs = np.arange(1, len(curve["train_loss"]) + 1)
         ax.plot(epochs, curve["train_loss"], color=BLUE, linewidth=2, label="train")
@@ -207,7 +207,7 @@ def probe_logits(dataset: str, encoder: str, k, seed: int):
     """Restore a saved probe checkpoint and score the test split with it."""
     z, y = utils.load_cache(dataset, encoder, "test")
     model = heads.linear_probe(config.FEATURE_DIM[encoder], config.NUM_CLASSES[dataset])
-    model.load_state_dict(torch.load(config.CKPT / f"{dataset}_{encoder}_K{k}_s{seed}.pt"))
+    model.load_state_dict(torch.load(config.CKPT / f"{config.run_tag(dataset, encoder, 'linear', k, seed)}.pt"))
     model.eval()
     with torch.no_grad():
         return model(z), y

@@ -1,4 +1,4 @@
-.PHONY: verify features runs table figures all clean
+.PHONY: verify features runs table figures runs-stage2 figures-stage2 all clean
 
 PYTHON := .venv/bin/python
 
@@ -20,10 +20,19 @@ table:
 
 # M6: regenerate every figure from results/runs.csv and the caches.
 figures:
-	$(PYTHON) -m src.figures
+	$(PYTHON) -m src.figures_stage1
+
+# --- Stage 2: flow matching to class prototypes -------------------------
+
+runs-stage2:
+	$(PYTHON) -m src.train_fm
+
+figures-stage2:
+	$(PYTHON) -m src.figures_stage2
 
 all: features runs table figures
 
 # Removes derived artefacts only; never touches data/.
 clean:
-	rm -rf features/* results/runs.csv results/ckpt/* figures/*
+	rm -rf features/* results/runs.csv results/ckpt/* results/curves/* \
+	       figures/stage1/* figures/stage2/*

@@ -100,7 +100,7 @@ def run_probe(dataset: str, encoder: str, k, seed: int):
     with torch.no_grad():
         top1 = evaluate.top1(model(z_test), y_test)
 
-    tag = f"{dataset}_{encoder}_K{k}_s{seed}"
+    tag = config.run_tag(dataset, encoder, "linear", k, seed)
     config.CKPT.mkdir(parents=True, exist_ok=True)
     config.CURVES.mkdir(parents=True, exist_ok=True)
     torch.save(best_state, config.CKPT / f"{tag}.pt")

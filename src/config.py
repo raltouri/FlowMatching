@@ -14,6 +14,8 @@ RESULTS = ROOT / "results"
 CKPT = RESULTS / "ckpt"
 CURVES = RESULTS / "curves"
 FIGURES = ROOT / "figures"
+FIGURES_STAGE1 = FIGURES / "stage1"
+FIGURES_STAGE2 = FIGURES / "stage2"
 RUNS_CSV = RESULTS / "runs.csv"
 
 # --- Protocol (fixed by the spec) ---------------------------------------
@@ -58,6 +60,15 @@ VIZ_NUM_CLASSES = 9                     # readable subset for the 2-D projection
 def cache_path(dataset: str, encoder: str, split: str):
     """Location of one feature cache."""
     return FEATURES / f"{dataset}_{encoder}_{split}.pt"
+
+
+def run_tag(dataset: str, encoder: str, method: str, k, seed: int) -> str:
+    """Filename stem for one run's checkpoint and loss curve.
+
+    The method is part of the name so Stage 2's flow-matching runs cannot
+    overwrite Stage 1's linear probes.
+    """
+    return f"{dataset}_{encoder}_{method}_K{k}_s{seed}"
 
 
 def classes_path(dataset: str):

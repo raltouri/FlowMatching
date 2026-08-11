@@ -1,4 +1,4 @@
-# Stage 1 — Progress Report
+# Stage 1 — Report
 
 **Status:** milestones M0–M4 complete. All 48 experimental runs finished; figures and
 write-up remain.
@@ -120,11 +120,11 @@ All regenerate from `results/runs.csv` and the feature caches via `make table fi
 | File | Content |
 |---|---|
 | `results/accuracy_table.md` | the table above, generated — 18 cells, 0 missing |
-| `figures/accuracy_vs_k.png` | accuracy vs. K with error bars, both datasets, chance line marked |
-| `figures/loss_curves.png` | train and validation loss, K=10 seed 0, one panel per pipeline |
-| `figures/confusion_dtd.png`, `figures/confusion_aircraft.png` | row-normalised confusion matrices |
+| `figures/stage1/accuracy_vs_k.png` | accuracy vs. K with error bars, both datasets, chance line marked |
+| `figures/stage1/loss_curves.png` | train and validation loss, K=10 seed 0, one panel per pipeline |
+| `figures/stage1/confusion_dtd.png`, `figures/stage1/confusion_aircraft.png` | row-normalised confusion matrices |
 | `results/top_confusions.md` | the largest off-diagonal entries, named |
-| `figures/features_dtd.png`, `figures/features_aircraft.png` | t-SNE of test features with prototypes |
+| `figures/stage1/features_dtd.png`, `figures/stage1/features_aircraft.png` | t-SNE of test features with prototypes |
 
 Encoder is encoded as hue and head as line style, so the two are separable without
 relying on four hues. The nine-class projections use three hues x three marker shapes
