@@ -34,6 +34,10 @@ RUN_FIELDS = (
 RUN_KEY = ("dataset", "encoder", "head", "K", "seed")
 
 
+def pick_device() -> torch.device:
+    return torch.device("mps" if torch.backends.mps.is_available() else "cpu")
+
+
 def set_seed(seed: int) -> None:
     random.seed(seed)
     np.random.seed(seed)
