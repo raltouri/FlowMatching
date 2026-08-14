@@ -44,6 +44,20 @@ BATCH_SIZE = 64
 MAX_EPOCHS = 200
 # Checkpoint selection: highest validation accuracy.
 
+# --- Stage 2: flow matching ---------------------------------------------
+
+FM_HIDDEN = 512                         # two hidden layers of this width, SiLU
+FM_STEPS = (4, 12)                      # Euler steps T, evaluated at both
+FM_LR = 1e-3
+FM_EPOCHS = 200
+FM_BATCH_SIZE = 64
+# The flow operates on L2-normalised features. Prototypes are unit vectors
+# while raw features have norms of roughly 9-54, so on raw features the target
+# velocity p - z would be dominated by shrinking the magnitude — which the
+# cosine decision rule ignores entirely. Normalising both sides puts the whole
+# of the learning problem into direction, which is the only thing classified.
+FM_NORMALIZE = True
+
 # --- Feature extraction -------------------------------------------------
 
 IMAGE_SIZE = 224                        # divisible by 14, required by ViT-S/14
