@@ -239,7 +239,54 @@ That is why the compute matters: 108 trainings, and each rolled-out T=12 run doe
 
 ---
 
-## 7. Glossary
+## 7. What a "sweep" is, and why there are 108 of them
+
+A **run** is one complete experiment: train one velocity network from scratch, then measure
+how accurate it is on the test images. A **sweep** is running *every* combination of the
+experimental settings, one after another, rather than picking a few interesting ones.
+
+The number comes from multiplying out five choices:
+
+| Choice | Options | |
+|---|---|---|
+| Which dataset + encoder | DTD·ResNet-18, Aircraft·ResNet-18, Aircraft·DINOv2 | 3 |
+| How many labelled examples (K) | 5, 10, all | 3 |
+| Random seed | 0, 1, 2 | 3 |
+| Training method | standard, rolled-out | 2 |
+| Euler steps (T) | 4, 12 | 2 |
+
+3 × 3 × 3 × 2 × 2 = **108 runs**.
+
+### Why every combination, rather than a sample
+
+Every question Stage 2 asks is a *comparison*, and a comparison is only fair if everything
+except the thing being compared is held identical. To answer "does rolled-out beat
+standard?", both must be trained on the same data, with the same seed, the same T, and the
+same architecture — so the training objective is the only difference left. The same applies
+to "does T=12 beat T=4?" and "does flow matching beat the Stage 1 baseline?"
+
+The three seeds are what let the results carry a "±". Repeating each setting three times
+with different random draws shows whether a difference is real or just luck in which
+examples happened to be sampled.
+
+### What happens inside one run
+
+1. Load the cached features (no images involved)
+2. Build the class prototypes from that setting's labelled subset
+3. Train the velocity network for 200 epochs
+4. Transport the test features through the T-step journey
+5. Measure top-1 accuracy
+6. Append one row to `results/runs.csv`
+
+Step 6 is what makes progress durable: results are written as they finish, so an interrupted
+sweep resumes where it stopped instead of repeating completed work.
+
+The `fm_roll_T12` runs are the slowest, because each training step backpropagates through
+all twelve Euler steps rather than answering a single question.
+
+---
+
+## 8. Glossary
 
 | Term | Plain meaning |
 |---|---|
@@ -261,6 +308,9 @@ That is why the compute matters: 108 trainings, and each rolled-out T=12 run doe
 | **T** | How many such steps the journey takes (we test 4 and 12) |
 | **Standard FM** | Trains on random points along the ideal straight path |
 | **Rolled-out FM** | Trains on the full self-steered journey, graded by where it ends |
+| **Run** | One complete experiment: train one network, measure its accuracy |
+| **Sweep** | Running every combination of the experimental settings in turn |
+| **Epoch** | One pass through all the training examples. We do 200 per run |
 | **Loss** | A score for how wrong the model currently is. Training tries to make it small |
 | **Overfitting** | Memorising the training examples instead of learning the pattern; looks great on training data, worse on new data |
 | **PCA / t-SNE** | Ways to squash 512 numbers down to 2 so points can be drawn on paper |
