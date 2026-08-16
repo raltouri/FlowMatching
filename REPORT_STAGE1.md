@@ -127,9 +127,9 @@ All regenerate from `results/runs.csv` and the feature caches via `make table fi
 | `figures/stage1/features_dtd.png`, `figures/stage1/features_aircraft.png` | t-SNE of test features with prototypes |
 
 Encoder is encoded as hue and head as line style, so the two are separable without
-relying on four hues. The nine-class projections use three hues x three marker shapes
-rather than nine hues, which keeps every pair distinguishable under colour-vision
-deficiency; the palette was checked with a validator rather than by eye.
+relying on four hues. The feature projections show eight classes, one per slot of a
+validated categorical palette, with class identity carried by colour alone and the
+legend supplying the colour-to-class mapping.
 
 ## 6. Findings
 
