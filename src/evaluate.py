@@ -88,9 +88,66 @@ def table_markdown() -> str:
     )
 
 
+def aggregate_stage2() -> pd.DataFrame:
+    """Flow-matching results, each paired with its Stage 1 prototype baseline.
+
+    The delta is the quantity Stage 2 is actually about, so it is computed here
+    rather than by eye: every FM row is matched to the baseline row with the
+    same dataset, encoder and K.
+    """
+    stats = aggregate()
+    baseline = stats[stats["head"] == "prototypes"].set_index(
+        ["dataset", "encoder", "K"]
+    )["mean"]
+    fm = stats[stats["head"].str.startswith("fm_")].copy()
+    fm["baseline"] = [
+        baseline.loc[(row.dataset, row.encoder, row.K)] for row in fm.itertuples()
+    ]
+    fm["delta"] = fm["mean"] - fm["baseline"]
+    return fm
+
+
+def table_stage2_markdown() -> str:
+    """One table per pipeline: accuracy, spread, and delta against baseline."""
+    fm = aggregate_stage2()
+    shots = [str(k) for k in config.SHOTS]
+    lines = [
+        "# Stage 2 — accuracy (top-1 %, complete official test split)",
+        "",
+        "Generated from `results/runs.csv`. Bracketed values are the change against",
+        "the Stage 1 prototype baseline for the same dataset, encoder and K.",
+    ]
+
+    for (dataset, encoder), group in fm.groupby(["dataset", "encoder"], observed=True):
+        lines += [
+            "",
+            f"## {dataset} · {encoder}",
+            "",
+            "| method | " + " | ".join(f"K={k}" for k in shots) + " |",
+            "|" + "|".join(["---"] * (len(shots) + 1)) + "|",
+        ]
+        base = group.set_index("K")["baseline"]
+        lines.append(
+            "| prototype baseline (Stage 1) | "
+            + " | ".join(f"{base.loc[k].iloc[0]:.2f}" for k in shots)
+            + " |"
+        )
+        for method, rows in group.groupby("head", observed=True):
+            rows = rows.set_index("K")
+            cells = []
+            for k in shots:
+                r = rows.loc[k]
+                cells.append(f"{r['mean']:.2f} ± {r['std']:.2f} ({r['delta']:+.2f})")
+            lines.append(f"| {method} | " + " | ".join(cells) + " |")
+
+    return "\n".join(lines) + "\n"
+
+
 if __name__ == "__main__":
-    out = config.RESULTS / "accuracy_table.md"
-    text = table_markdown()
-    out.write_text(text)
-    print(text)
-    print(f"written to {out}")
+    for name, build in (
+        ("accuracy_table.md", table_markdown),
+        ("accuracy_table_stage2.md", table_stage2_markdown),
+    ):
+        out = config.RESULTS / name
+        out.write_text(build())
+        print(f"written to {out}")
