@@ -2,10 +2,8 @@
 
     python -m src.figures
 
-Colours come from a palette validated for colour-vision deficiency (worst
-adjacent CVD ΔE 24.7 for the two-series charts; worst all-pairs ΔE 9.2 for the
-three-colour scatter). These are static figures for a printed report, so they
-deliberately commit to the light surface only.
+Colours come from a validated categorical palette. These are static figures for
+a printed report, so they deliberately commit to the light surface only.
 """
 
 from __future__ import annotations
@@ -44,10 +42,13 @@ ENCODER_COLOR = {"resnet18": BLUE, "dinov2_vits14": ORANGE}
 ENCODER_LABEL = {"resnet18": "ResNet-18", "dinov2_vits14": "DINOv2 ViT-S/14"}
 HEAD_STYLE = {"linear": "-", "prototypes": "--"}
 
-# Nine classes need nine identities. Three validated hues x three marker shapes
-# gives that without a ninth generated hue: every pair differs in hue or shape.
-CLASS_COLORS = (BLUE, ORANGE, AQUA)
-CLASS_MARKERS = ("o", "^", "s")
+# Class identity is carried by hue alone: the eight validated palette slots, one
+# per class. Marker shapes would separate them further under colour-vision
+# deficiency, but were dropped at the supervisor's request; the legend carries
+# the colour-to-class mapping instead.
+CLASS_COLORS = (
+    BLUE, ORANGE, AQUA, "#eda100", "#e87ba4", "#008300", "#4a3aa7", "#e34948",
+)
 
 # The setting whose errors are worth showing: the best probe on each dataset.
 REPRESENTATIVE = {"dtd": ("resnet18", "full", 0), "aircraft": ("dinov2_vits14", "full", 0)}
@@ -99,7 +100,10 @@ def fig_accuracy_vs_k() -> None:
     fig, axes = plt.subplots(1, 2, figsize=(9.5, 4.0), sharey=True)
 
     for ax, dataset in zip(axes, config.DATASETS):
-        subset = stats[stats["dataset"] == dataset]
+        # The ledger is shared with Stage 2, so restrict to the Stage 1 heads.
+        subset = stats[
+            (stats["dataset"] == dataset) & (stats["head"].isin(HEAD_STYLE))
+        ]
         for (encoder, head), group in subset.groupby(["encoder", "head"], observed=True):
             group = group.sort_values("K")
             ax.errorbar(
@@ -294,20 +298,16 @@ def fig_feature_projection(dataset: str) -> None:
         labels = y_test[keep].numpy()
 
         for slot, cls in enumerate(classes):
-            mask = labels == cls
-            style = dict(
-                color=CLASS_COLORS[slot // 3], marker=CLASS_MARKERS[slot % 3]
-            )
-            ax.scatter(*xy[mask].T, s=14, alpha=0.55, linewidths=0, **style)
-            # The prototype gets a surface ring so it stays readable where it
-            # overlaps its own cloud.
+            color = CLASS_COLORS[slot]
             ax.scatter(
-                *proto_xy[slot],
-                s=200,
-                edgecolors=SURFACE,
-                linewidths=2,
-                zorder=3,
-                **style,
+                *xy[labels == cls].T, s=14, alpha=0.55, linewidths=0, color=color
+            )
+            # The prototype gets a surface ring so it stays readable where it
+            # overlaps its own cloud, and a direct label so the class can be
+            # identified without relying on hue.
+            ax.scatter(
+                *proto_xy[slot], s=200, color=color, edgecolors=SURFACE,
+                linewidths=2, zorder=3,
             )
 
         ax.set_title(ENCODER_LABEL[encoder])
@@ -317,17 +317,15 @@ def fig_feature_projection(dataset: str) -> None:
 
     handles = [
         Line2D(
-            [], [], color=CLASS_COLORS[s // 3], marker=CLASS_MARKERS[s % 3],
-            linestyle="", markersize=6, label=names[c],
+            [], [], color=CLASS_COLORS[s], marker="o", linestyle="",
+            markersize=6, label=names[c],
         )
         for s, c in enumerate(classes)
     ] + [
-        # Prototypes are drawn with their own class's shape and hue, enlarged
-        # and ringed — so the legend entry must show that, not a new marker.
         Line2D(
             [], [], color=MUTED, marker="o", linestyle="", markersize=12,
             markeredgecolor=SURFACE, markeredgewidth=2,
-            label="prototype (enlarged, ringed)",
+            label="prototype (enlarged, ringed, labelled)",
         )
     ]
     fig.legend(

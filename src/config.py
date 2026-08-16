@@ -68,7 +68,9 @@ AIRCRAFT_BANNER_PX = 20
 
 # --- Figures ------------------------------------------------------------
 
-VIZ_NUM_CLASSES = 9                     # readable subset for the 2-D projections
+# Readable subset for the 2-D projections. Eight, not nine, so each class can
+# take one of the eight validated palette hues without a generated ninth.
+VIZ_NUM_CLASSES = 8
 
 
 def cache_path(dataset: str, encoder: str, split: str):
