@@ -1,4 +1,4 @@
-.PHONY: verify features runs table figures runs-stage2 figures-stage2 all clean
+.PHONY: verify features runs table figures runs-stage2 figures-stage2 analysis-stage2 all clean
 
 PYTHON := .venv/bin/python
 
@@ -29,6 +29,10 @@ runs-stage2:
 
 figures-stage2:
 	$(PYTHON) -m src.figures_stage2
+
+# Geometry, prototype-identity check, and flip analysis.
+analysis-stage2:
+	$(PYTHON) -m src.analysis_stage2
 
 all: features runs table figures
 
