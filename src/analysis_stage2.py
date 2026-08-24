@@ -10,6 +10,7 @@ Four questions the accuracy table cannot answer on its own:
    eyeballed from a t-SNE plot.
 3. Why does flow matching hurt in the few-shot settings?
 4. Which test images does the flow rescue, and which does it break?
+5. Does the flow actually travel along the path it was trained on?
 """
 
 from __future__ import annotations
@@ -185,6 +186,60 @@ def flips(lines: list[str]) -> None:
     lines.append("")
 
 
+# --- 5. Does the flow follow the path it was trained on? ----------------
+
+
+def path_drift(dataset: str, encoder: str, method: str, k, seed: int):
+    """Per-step drift from the ideal straight line, and distance to the target.
+
+    Standard FM is supervised only at points on the straight line from a feature
+    to its prototype, yet at inference it steers by its own predictions. Drift
+    measures how far those self-generated states depart from the line the
+    network was actually taught on — the train/test mismatch, quantified.
+
+    The true labels are used here to construct the ideal path. That is legitimate
+    for analysis: no classification decision depends on it.
+    """
+    steps = int(method.split("_T")[1])
+    z, y = prepared(dataset, encoder, "test")
+    protos = prototypes_for(dataset, encoder, k, seed)
+    targets = protos[y]
+
+    net = load_velocity(dataset, encoder, method, k, seed)
+    with torch.no_grad():
+        _, path = flow.rollout(net, z, steps, return_path=True)
+
+    t = torch.linspace(0, 1, steps + 1).view(1, -1, 1)
+    ideal = (1 - t) * z.unsqueeze(1) + t * targets.unsqueeze(1)
+    drift = (path - ideal).norm(dim=2).mean(dim=0)
+    to_target = (path - targets.unsqueeze(1)).norm(dim=2).mean(dim=0)
+    return t.flatten().numpy(), drift.numpy(), to_target.numpy()
+
+
+def trajectory_fidelity(lines: list[str]) -> None:
+    k, seed = SETTING
+    lines += [
+        "## 5. Does the flow follow the path it was trained on?",
+        "",
+        "Mean Euclidean distance between the network's own trajectory and the ideal "
+        "straight line from each test feature to its true prototype, at K=full, seed 0. "
+        "Drift at t=0 is zero by construction; at t=1 the ideal path has arrived, so drift "
+        "there equals the distance still remaining to the target.",
+        "",
+        "| pipeline | method | drift @ t=0.25 | @ t=0.5 | @ t=0.75 | @ t=1 | dist. to target @ t=1 |",
+        "|---|---|---:|---:|---:|---:|---:|",
+    ]
+    for dataset, encoder in config.PIPELINES:
+        for method in METHODS:
+            t, drift, to_target = path_drift(dataset, encoder, method, k, seed)
+            pick = [int(round(q * (len(t) - 1))) for q in (0.25, 0.5, 0.75, 1.0)]
+            cells = " | ".join(f"{drift[i]:.3f}" for i in pick)
+            lines.append(
+                f"| {dataset} · {encoder} | {method} | {cells} | {to_target[-1]:.3f} |"
+            )
+    lines.append("")
+
+
 def main() -> None:
     lines = [
         "# Stage 2 — geometric analysis",
@@ -196,6 +251,7 @@ def main() -> None:
     geometry(lines)
     prototype_quality(lines)
     flips(lines)
+    trajectory_fidelity(lines)
 
     out = config.RESULTS / "geometry_stage2.md"
     out.write_text("\n".join(lines) + "\n")

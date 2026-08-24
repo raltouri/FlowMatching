@@ -58,3 +58,16 @@ Test images whose prediction changes when the flow is applied, at K=full, seed 0
 | aircraft · dinov2_vits14 | fm_std_T4 | 953 | 124 | **+829** |
 | aircraft · dinov2_vits14 | fm_roll_T4 | 898 | 253 | **+645** |
 
+## 5. Does the flow follow the path it was trained on?
+
+Mean Euclidean distance between the network's own trajectory and the ideal straight line from each test feature to its true prototype, at K=full, seed 0. Drift at t=0 is zero by construction; at t=1 the ideal path has arrived, so drift there equals the distance still remaining to the target.
+
+| pipeline | method | drift @ t=0.25 | @ t=0.5 | @ t=0.75 | @ t=1 | dist. to target @ t=1 |
+|---|---|---:|---:|---:|---:|---:|
+| dtd · resnet18 | fm_std_T4 | 0.127 | 0.219 | 0.309 | 0.411 | 0.411 |
+| dtd · resnet18 | fm_roll_T4 | 0.996 | 0.970 | 0.590 | 0.358 | 0.358 |
+| aircraft · resnet18 | fm_std_T4 | 0.064 | 0.107 | 0.150 | 0.205 | 0.205 |
+| aircraft · resnet18 | fm_roll_T4 | 3.362 | 3.763 | 1.712 | 0.289 | 0.289 |
+| aircraft · dinov2_vits14 | fm_std_T4 | 0.091 | 0.163 | 0.237 | 0.323 | 0.323 |
+| aircraft · dinov2_vits14 | fm_roll_T4 | 0.620 | 0.514 | 0.351 | 0.268 | 0.268 |
+
