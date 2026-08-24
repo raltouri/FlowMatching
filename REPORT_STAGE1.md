@@ -113,6 +113,12 @@ runs; prototypes at K=full are deterministic and require a single run.
 
 Chance level is 2.1% on DTD and 1.0% on Aircraft.
 
+![Accuracy against training-set size](figures/stage1/accuracy_vs_k.png)
+
+*Accuracy against training-set size, both datasets. Hue is the encoder and line style the
+head, with the chance level marked. The DINOv2 gap on Aircraft is the widest separation in
+the figure.*
+
 ### Figures
 
 All regenerate from `results/runs.csv` and the feature caches via `make table figures`.
@@ -170,6 +176,13 @@ classes still improves slightly. It matters because checkpoint selection uses ac
 spec requires, and would have stopped 160 epochs earlier had it used loss. The rising
 validation loss is the overfitting the curves are meant to show.
 
+![Confusion matrices](figures/stage1/confusion_aircraft.png)
+
+*Row-normalised confusion matrix, Aircraft with DINOv2 at K=full. The dark diagonal is
+per-class recall; the off-diagonal mass clusters in blocks, which is the signature of
+confusions within an aircraft family rather than random error. The DTD matrix is at
+`figures/stage1/confusion_dtd.png`.*
+
 **The residual errors are dominated by pairs that are near-indistinguishable by construction.**
 The largest off-diagonal entries on Aircraft are C-47 → DC-3 (0.52) and DC-3 → C-47 (0.44) —
 the C-47 is the military designation of the DC-3, so the two labels describe what is
@@ -192,6 +205,12 @@ reveals a caveat:
 | Aircraft · ResNet-18 | 185 | 169 | 64 |
 | Aircraft · DINOv2 | 195 | 195 | 128 |
 
+![Training and validation loss](figures/stage1/loss_curves.png)
+
+*Train and validation loss for a representative 10-shot run per pipeline. Validation loss
+bottoms out near epoch 30–40 and rises thereafter, while the dashed line marks where
+validation accuracy — the quantity checkpoint selection actually uses — reached its peak.*
+
 DTD at K=full peaks at epoch 21 of 200 and overfits thereafter — visible in the loss curves.
 But DINOv2's few-shot runs peak at ~195, one of them at exactly 200, meaning validation accuracy
 was **still improving when the cap stopped training**. Those two cells (36.66% and 50.56%) are
@@ -209,6 +228,12 @@ adjustment is unnecessary rather than overdue.
 
 ## 8. What the visualisations show
 
+![Feature projections, Aircraft](figures/stage1/features_aircraft.png)
+
+*Test features for eight Aircraft classes under both encoders, with their image-derived
+prototypes shown as enlarged rings. Same classes, same test images and same colours in both
+panels; the projection is fitted jointly to the features and the prototypes.*
+
 **The two-dimensional projections make the encoder gap visible.** On Aircraft, the same nine
 classes and the same test images under ResNet-18 form a single undifferentiated cloud with all
 nine prototypes crowded near its centre; under DINOv2 the same points separate into distinct
@@ -220,6 +245,11 @@ a compact region around one centre, and the ResNet-18 panel shows directly that 
 
 On DTD the ResNet-18 projection already shows clean clustering, which is consistent with
 prototypes remaining competitive there.
+
+![Feature projections, DTD](figures/stage1/features_dtd.png)
+
+*The same view for DTD under ResNet-18: classes separate cleanly and each prototype sits
+inside its own cluster, which is why the prototype baseline is competitive on this dataset.*
 
 Features and prototypes were both L2-normalised before projecting, and the projection was fitted
 jointly to both, as the spec requires — without normalisation the plot would have separated
