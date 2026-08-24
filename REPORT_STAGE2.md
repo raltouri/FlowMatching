@@ -80,6 +80,14 @@ seeds. The bracketed value is ΔAcc against the corresponding Stage 1 prototype 
 | fm_roll_T4 | 33.62 ± 0.68 (+9.29) | 43.31 ± 0.75 (+15.80) | 54.25 ± 0.59 (+19.99) |
 | fm_roll_T12 | **33.74** ± 0.89 (+9.41) | **43.44** ± 0.82 (+15.93) | 53.39 ± 0.58 (+19.12) |
 
+![Accuracy against training-set size](figures/stage2/accuracy_vs_k.png)
+
+*Accuracy against K for the prototype baseline and all four flow-matching variants, one panel
+per pipeline. Hue is the training mode and line style the number of Euler steps. The
+right-hand panel shows the effect at its largest: blue and orange both leave the grey baseline
+far behind. The left-hand panel shows it at its smallest, with rolled-out falling below the
+baseline entirely.*
+
 ## 4. Verification
 
 Each step was gated before the next began, and the checks are reproducible with
@@ -156,6 +164,13 @@ The training curves explain why:
 | standard | 0.00041 | **58.17%** |
 | rolled-out | 0.00011 | 54.26% |
 
+![Training loss, standard and rolled-out](figures/stage2/loss_curves.png)
+
+*Training loss for both objectives on the same setting, log scale. Both descend smoothly, so
+neither is unstable. The values are not comparable between panels — standard FM measures
+velocity error and rolled-out measures endpoint error — but the shapes show both reach a
+converged solution.*
+
 **Rolled-out fits its own objective nearly four times better and generalises worse.** That is
 overfitting, and the mechanism is specific: rolled-out training supervises a single endpoint
 per example and only shapes the velocity field along the trajectories its own training points
@@ -204,6 +219,13 @@ At K=full, seed 0, on the test split:
 | DTD · ResNet-18 | original | 0.744 | 0.731 | **+0.013** |
 | | standard FM | 0.911 | 0.899 | **+0.012** |
 | | rolled-out FM | 0.929 | 0.924 | **+0.005** |
+
+![Feature space before and after the flow](figures/stage2/feature_space.png)
+
+*The same eight classes and the same test images, before the flow and after each variant, in
+one jointly fitted projection. Both variants contract each class toward its prototype;
+rolled-out contracts hardest. The figure alone would suggest rolled-out is doing better,
+which is exactly why the margin numbers below matter.*
 
 This is the sharpest result in Stage 2, and it refines the overfitting story of §5.
 
@@ -280,6 +302,69 @@ and the overfitting shows through as a net loss; where the baseline was far behi
 Net effect = headroom − overfitting cost. That single expression accounts for the sign of
 every cell in §3.
 
+### The flow does not travel the path it was trained on — and rolled-out leaves the space entirely
+
+The train/test mismatch that motivates rolled-out training can be measured rather than
+argued. At each Euler step, compare where the network actually is against where the ideal
+straight line from feature to prototype says it should be. Mean Euclidean distance over the
+test split, K=full, seed 0, T=4:
+
+| Pipeline | method | t=0.25 | t=0.5 | t=0.75 | t=1 |
+|---|---|---:|---:|---:|---:|
+| DTD · ResNet-18 | standard | 0.127 | 0.219 | 0.309 | 0.411 |
+| | rolled-out | 0.996 | 0.970 | 0.590 | 0.358 |
+| Aircraft · ResNet-18 | standard | 0.064 | 0.107 | 0.150 | 0.205 |
+| | rolled-out | **3.362** | **3.763** | 1.712 | 0.289 |
+| Aircraft · DINOv2 | standard | 0.091 | 0.163 | 0.237 | 0.323 |
+| | rolled-out | 0.620 | 0.514 | 0.351 | 0.268 |
+
+![Distance from the ideal path](figures/stage2/path_drift.png)
+
+*How far each method strays from the straight line it should be following, at every Euler
+step. The dashed line marks 2.0 — the largest possible distance between two real features —
+so anything above it is outside the region real features occupy.*
+
+Features are L2-normalised, so **two of them can be at most 2.0 apart**. That gives the scale
+a meaning, and it makes the middle rows remarkable: on Aircraft · ResNet-18 the rolled-out
+trajectory sits **3.76 away from the ideal path at the halfway point** — nearly twice the
+maximum possible separation between two real features. Its intermediate states are not merely
+off the straight line; they are far outside the region any real feature occupies. It leaves
+the feature space, loops through empty territory, and comes back to land near the target.
+
+That behaviour is licensed by the objective. `L_roll` is evaluated only at `ẑ_T`, so every
+intermediate state is unconstrained — the network is free to take any route it likes provided
+it arrives. Standard FM, supervised at points along the line, stays within 0.06–0.13 of it at
+the first step.
+
+Two consequences worth stating:
+
+**The mismatch standard FM was accused of is real but modest.** Its drift grows monotonically
+— 0.09 → 0.32 on Aircraft · DINOv2 — so by the end it is roughly a third of a unit from
+territory it was ever trained on. Real, and consistent with rolled-out's original motivation,
+but an order of magnitude smaller than the excursion rolled-out itself makes.
+
+**Rolled-out solves the mismatch by abandoning the concept of a path.** It does not follow the
+trajectory more faithfully; it follows a wildly different one. Combined with §6's finding that
+it contracts the space indiscriminately, the picture is consistent: rolled-out optimises
+arrival and nothing else, and both the route and the class structure are casualties of that.
+
+### What a single journey looks like
+
+![Flow trajectories](figures/stage2/trajectories.png)
+
+*Twelve test images from four classes, each transported by twelve Euler steps and projected
+with PCA fitted jointly over every state and prototype. Circles mark the original feature,
+crosses the final transported position, stars the class prototype.*
+
+Individual journeys are smooth and roughly direct — the network does not oscillate or
+overshoot — and points of the same class converge on a common region rather than each taking
+an idiosyncratic route. Several trajectories end some way short of their prototype, which is
+consistent with the residual distances in the drift table: four Euler steps of a learned
+velocity field bring a point most of the way, not all of it.
+
+PCA is the right projection here, and t-SNE would be wrong: PCA is a linear map, so a straight
+path in feature space stays straight on the page and the geometry can be read directly.
+
 ## 7. Figures
 
 All regenerate from `results/runs.csv` and the feature caches via `make table figures-stage2`.
@@ -291,6 +376,7 @@ All regenerate from `results/runs.csv` and the feature caches via `make table fi
 | `figures/stage2/loss_curves.png` | training loss, standard and rolled-out, on a log scale |
 | `figures/stage2/feature_space.png` | test features before the flow, after standard FM, and after rolled-out FM |
 | `figures/stage2/trajectories.png` | twelve-step flow paths for twelve test images, with PCA |
+| `figures/stage2/path_drift.png` | distance from the ideal straight path at each Euler step |
 
 Training mode carries hue and the number of Euler steps carries line style, so four methods
 plus a baseline stay legible with two colours and a grey. The feature-space panels share one
@@ -307,4 +393,7 @@ overfitting diagnosis in §4: tighter fitting is not the same as better generali
 
 ## 8. Remaining work
 
-1. Optional: the reverse flow, starting from the prototypes.
+1. Optional: the reverse flow, starting from the class prototypes.
+
+The other optional extension — comparing samples and prototypes at intermediate flow times —
+is covered in §6.
