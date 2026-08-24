@@ -65,5 +65,3 @@ You should be prepared to present and discuss:
    PCA is recommended for this visualization because the projected trajectories are easier to interpret geometrically.
 
 Optional. You are also encouraged to explore the learned flow in the reverse direction, starting from the class prototypes, and to consider comparing samples and prototypes at intermediate flow times.
-
-2
