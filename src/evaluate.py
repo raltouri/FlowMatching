@@ -40,6 +40,13 @@ def confusion_matrix(
 # so nothing in the report is transcribed by hand.
 
 
+# Which ledger rows belong to which stage. Named explicitly rather than matched
+# by prefix: Stage 3's heads also begin with "fm_", and a prefix match would
+# silently pull them into the Stage 2 table.
+STAGE1_HEADS = ("prototypes", "linear")
+STAGE2_HEADS = ("fm_std_T4", "fm_std_T12", "fm_roll_T4", "fm_roll_T12")
+
+
 def aggregate() -> pd.DataFrame:
     """Mean and standard deviation of top-1 over the seeds of each setting."""
     runs = pd.read_csv(config.RUNS_CSV)
@@ -59,6 +66,7 @@ def aggregate() -> pd.DataFrame:
 def table_markdown() -> str:
     """The accuracy table: one row per pipeline and head, one column per K."""
     stats = aggregate()
+    stats = stats[stats["head"].isin(STAGE1_HEADS)]
     cell = stats.apply(
         # A single run has no standard deviation to report.
         lambda r: f"{r['mean']:.2f}" if r["runs"] == 1 else f"{r['mean']:.2f} ± {r['std']:.2f}",
@@ -80,7 +88,7 @@ def table_markdown() -> str:
         lines.append("| " + " | ".join([dataset, encoder, head, *row]) + " |")
 
     return (
-        "# Accuracy (top-1 %, complete official test split)\n\n"
+        "# Stage 1 — accuracy (top-1 %, complete official test split)\n\n"
         f"Generated from `results/runs.csv`. {len(wide)} rows x {len(wide.columns)} "
         f"settings = {wide.size} cells, {missing} missing.\n\n"
         + "\n".join(lines)
@@ -99,7 +107,7 @@ def aggregate_stage2() -> pd.DataFrame:
     baseline = stats[stats["head"] == "prototypes"].set_index(
         ["dataset", "encoder", "K"]
     )["mean"]
-    fm = stats[stats["head"].str.startswith("fm_")].copy()
+    fm = stats[stats["head"].isin(STAGE2_HEADS)].copy()
     fm["baseline"] = [
         baseline.loc[(row.dataset, row.encoder, row.K)] for row in fm.itertuples()
     ]
