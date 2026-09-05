@@ -16,6 +16,7 @@ CURVES = RESULTS / "curves"
 FIGURES = ROOT / "figures"
 FIGURES_STAGE1 = FIGURES / "stage1"
 FIGURES_STAGE2 = FIGURES / "stage2"
+FIGURES_STAGE3 = FIGURES / "stage3"
 RUNS_CSV = RESULTS / "runs.csv"
 
 # --- Protocol (fixed by the spec) ---------------------------------------
@@ -57,6 +58,29 @@ FM_BATCH_SIZE = 64
 # cosine decision rule ignores entirely. Normalising both sides puts the whole
 # of the learning problem into direction, which is the only thing classified.
 FM_NORMALIZE = True
+
+# --- Stage 3: flow matching before a frozen linear classifier -----------
+#
+# One encoder per dataset, one K and one T, as the spec asks. DTD has only one
+# encoder; on Aircraft, DINOv2 is the stronger probe and the more interesting
+# baseline to try to beat.
+STAGE3_PIPELINES = (("dtd", "resnet18"), ("aircraft", "dinov2_vits14"))
+STAGE3_K = 10                           # the spec's suggested default
+STAGE3_STEPS = 4                        # Stage 2 showed T barely matters; T=4 is cheapest
+STAGE3_LR = 1e-3
+STAGE3_EPOCHS = 200
+# Displacement penalty on ||z_hat - z||^2. The frozen classifier plus an
+# unconstrained flow invites pushing features into whatever region scores
+# confidently, which need not generalise; this is the countermeasure.
+STAGE3_LAMBDAS = (0.0, 0.01, 0.1)
+# Classifier-guided targets: z' = z_hat - eta * d(CE)/d(z_hat), repeated.
+STAGE3_GUIDED_ETA = 1.0
+STAGE3_GUIDED_STEPS = 1
+STAGE3_TARGET_REFRESH = 1               # recompute targets every N epochs
+# The flow runs on RAW features here, unlike Stage 2. The frozen classifier was
+# fitted to raw cached features, so normalising would hand it a distribution it
+# has never seen and the near-identity start would not reproduce Stage 1.
+STAGE3_NORMALIZE = False
 
 # --- Feature extraction -------------------------------------------------
 
