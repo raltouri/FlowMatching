@@ -20,9 +20,14 @@ Two differences from Stage 2, both deliberate and both easy to get wrong:
 from __future__ import annotations
 
 import argparse
+import copy
+import json
+import time
 
 import torch
 from torch import nn
+from torch.nn import functional as F
+from torch.utils.data import DataLoader, TensorDataset
 
 from src import config, evaluate, flow, utils
 from src.train import subset_indices
@@ -67,6 +72,115 @@ def features(dataset: str, encoder: str, split: str):
     if config.STAGE3_NORMALIZE:  # False; see the module docstring
         z = torch.nn.functional.normalize(z, dim=1)
     return z, y
+
+
+def evaluate_split(net, probe, z, y, steps) -> tuple[float, float]:
+    net.eval()
+    with torch.no_grad():
+        logits = logits_through(net, probe, z, steps)
+        return F.cross_entropy(logits, y).item(), evaluate.top1(logits, y)
+
+
+def run_e2e(dataset: str, encoder: str, k, seed: int, lam: float = 0.0):
+    """Strategy 1: end-to-end rolled-out classification training.
+
+    Roll the feature through T Euler steps, classify with the frozen probe, and
+    backpropagate the cross-entropy through the whole rollout. Only the velocity
+    network is updated.
+
+    `lam` weights a displacement penalty on ||z_hat - z||^2. The classifier is
+    frozen and the flow is unconstrained, so the cheapest way to cut the loss is
+    to drive features into whatever region the classifier scores confidently —
+    which need not generalise. This is the countermeasure.
+    """
+    utils.set_seed(seed)
+    steps = config.STAGE3_STEPS
+
+    probe = load_probe(dataset, encoder, k, seed)
+    net = identity_init(flow.VelocityMLP(config.FEATURE_DIM[encoder]))
+    # Constructed over the flow's parameters only. Handing it a combined module
+    # would quietly train the classifier as well.
+    optimizer = torch.optim.AdamW(net.parameters(), lr=config.STAGE3_LR)
+
+    z_train, y_train = features(dataset, encoder, "train")
+    idx = subset_indices(y_train.numpy(), k, seed)
+    z_fit, y_fit = z_train[idx], y_train[idx]
+    z_val, y_val = features(dataset, encoder, "val")
+    z_test, y_test = features(dataset, encoder, "test")
+
+    loader = DataLoader(
+        TensorDataset(z_fit, y_fit), batch_size=config.FM_BATCH_SIZE, shuffle=True
+    )
+
+    started = time.time()
+    curve = {"train_loss": [], "val_loss": [], "val_acc": []}
+    best_acc, best_epoch, best_state = -1.0, 0, copy.deepcopy(net.state_dict())
+
+    for epoch in range(1, config.STAGE3_EPOCHS + 1):
+        net.train()
+        running = 0.0
+        for z_batch, y_batch in loader:
+            z_hat = flow.rollout(net, z_batch, steps)
+            loss = F.cross_entropy(probe(z_hat), y_batch)
+            if lam:
+                loss = loss + lam * (z_hat - z_batch).pow(2).sum(dim=1).mean()
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+            running += loss.item() * len(y_batch)
+
+        val_loss, val_acc = evaluate_split(net, probe, z_val, y_val, steps)
+        curve["train_loss"].append(running / len(y_fit))
+        curve["val_loss"].append(val_loss)
+        curve["val_acc"].append(val_acc)
+
+        # Model selection on validation accuracy, as in Stage 1. The test split
+        # is never consulted here.
+        if val_acc > best_acc:
+            best_acc, best_epoch = val_acc, epoch
+            best_state = copy.deepcopy(net.state_dict())
+
+    net.load_state_dict(best_state)
+    _, top1 = evaluate_split(net, probe, z_test, y_test, steps)
+
+    method = f"fm_e2e_lam{lam:g}"
+    tag = config.run_tag(dataset, encoder, method, k, seed)
+    config.CKPT.mkdir(parents=True, exist_ok=True)
+    config.CURVES.mkdir(parents=True, exist_ok=True)
+    torch.save(best_state, config.CKPT / f"{tag}.pt")
+    (config.CURVES / f"{tag}.json").write_text(json.dumps(curve))
+
+    return {
+        "method": method,
+        "top1": top1,
+        "best_val": best_acc,
+        "n_train": len(idx),
+        "epochs_run": config.STAGE3_EPOCHS,
+        "best_epoch": best_epoch,
+        "seconds": round(time.time() - started, 1),
+    }
+
+
+def sweep(runner, lams, seeds=None) -> None:
+    """Run one strategy over the Stage 3 pipelines, appending to the ledger."""
+    done = utils.completed_runs()
+    k = config.STAGE3_K
+    for dataset, encoder in config.STAGE3_PIPELINES:
+        for lam in lams:
+            for seed in (seeds or config.SEEDS):
+                method = f"fm_e2e_lam{lam:g}"
+                if (dataset, encoder, method, str(k), str(seed)) in done:
+                    continue
+                r = runner(dataset, encoder, k, seed, lam)
+                seconds, best_val = r.pop("seconds"), r.pop("best_val")
+                utils.append_run(
+                    dataset=dataset, encoder=encoder, head=r.pop("method"),
+                    K=k, seed=seed, **{**r, "top1": round(r["top1"], 5)},
+                )
+                print(f"{dataset:9s} {encoder:14s} {method:16s} seed={seed}  "
+                      f"val={best_val:.4f}  test={r['top1']:.4f}  "
+                      f"(epoch {r['best_epoch']}, {seconds:.0f}s)")
+    print(f"\nLedger: {config.RUNS_CSV}")
 
 
 def check_identity() -> None:
@@ -121,8 +235,12 @@ def check_identity() -> None:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--check", action="store_true", help="run the M1 gate")
+    parser.add_argument("--e2e", action="store_true", help="Strategy 1 sweep over lambda")
+    parser.add_argument("--lam", type=float, nargs="*", help="lambda values to run")
     args = parser.parse_args()
     if args.check:
         check_identity()
+    elif args.e2e:
+        sweep(run_e2e, args.lam if args.lam else config.STAGE3_LAMBDAS)
     else:
         parser.print_help()
