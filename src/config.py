@@ -74,7 +74,8 @@ STAGE3_EPOCHS = 200
 # confidently, which need not generalise; this is the countermeasure.
 STAGE3_LAMBDAS = (0.0, 0.01, 0.1)
 # Classifier-guided targets: z' = z_hat - eta * d(CE)/d(z_hat), repeated.
-STAGE3_GUIDED_ETA = 1.0
+# Step size is swept and chosen on validation, as the spec invites.
+STAGE3_ETAS = (0.1, 1.0, 10.0)
 STAGE3_GUIDED_STEPS = 1
 STAGE3_TARGET_REFRESH = 1               # recompute targets every N epochs
 # The flow runs on RAW features here, unlike Stage 2. The frozen classifier was

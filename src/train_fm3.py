@@ -161,17 +161,21 @@ def run_e2e(dataset: str, encoder: str, k, seed: int, lam: float = 0.0):
     }
 
 
-def sweep(runner, lams, seeds=None) -> None:
-    """Run one strategy over the Stage 3 pipelines, appending to the ledger."""
+def sweep(runner, name_fn, values, seeds=None, k=None) -> None:
+    """Run one strategy over the Stage 3 pipelines, appending to the ledger.
+
+    `k` defaults to the Stage 3 training-set size. Overriding it is how the
+    diagnostic at K=full is run: same code, larger subset.
+    """
     done = utils.completed_runs()
-    k = config.STAGE3_K
+    k = k or config.STAGE3_K
     for dataset, encoder in config.STAGE3_PIPELINES:
-        for lam in lams:
+        for value in values:
             for seed in (seeds or config.SEEDS):
-                method = f"fm_e2e_lam{lam:g}"
+                method = name_fn(value)
                 if (dataset, encoder, method, str(k), str(seed)) in done:
                     continue
-                r = runner(dataset, encoder, k, seed, lam)
+                r = runner(dataset, encoder, k, seed, value)
                 seconds, best_val = r.pop("seconds"), r.pop("best_val")
                 utils.append_run(
                     dataset=dataset, encoder=encoder, head=r.pop("method"),
@@ -181,6 +185,104 @@ def sweep(runner, lams, seeds=None) -> None:
                       f"val={best_val:.4f}  test={r['top1']:.4f}  "
                       f"(epoch {r['best_epoch']}, {seconds:.0f}s)")
     print(f"\nLedger: {config.RUNS_CSV}")
+
+
+def build_targets(net, probe, z, y, eta: float, steps_of_descent: int):
+    """A nearby representation the frozen classifier scores better.
+
+    Ask the classifier which way the feature should move — the gradient of the
+    cross-entropy with respect to the feature itself — and step that way.
+
+    The result is detached before it is returned. Left attached, gradients would
+    leak back through the target construction and the objective would no longer
+    be the regression the strategy claims to perform.
+    """
+    with torch.no_grad():
+        current = flow.rollout(net, z, config.STAGE3_STEPS)
+    for _ in range(steps_of_descent):
+        current = current.detach().requires_grad_(True)
+        loss = F.cross_entropy(probe(current), y)
+        (grad,) = torch.autograd.grad(loss, current)
+        current = current - eta * grad
+    return current.detach()
+
+
+def run_guided(dataset: str, encoder: str, k, seed: int, eta: float):
+    """Strategy 2: classifier-guided targets with standard FM training.
+
+    Instead of backpropagating through the rollout, construct an explicit target
+    from the classifier's gradient and regress onto it with the Stage 2 loss.
+    Targets are recomputed as the flow changes, so they chase a moving goal —
+    the main stability risk of this strategy.
+    """
+    utils.set_seed(seed)
+    steps = config.STAGE3_STEPS
+
+    probe = load_probe(dataset, encoder, k, seed)
+    net = identity_init(flow.VelocityMLP(config.FEATURE_DIM[encoder]))
+    optimizer = torch.optim.AdamW(net.parameters(), lr=config.STAGE3_LR)
+
+    z_train, y_train = features(dataset, encoder, "train")
+    idx = subset_indices(y_train.numpy(), k, seed)
+    z_fit, y_fit = z_train[idx], y_train[idx]
+    z_val, y_val = features(dataset, encoder, "val")
+    z_test, y_test = features(dataset, encoder, "test")
+
+    started = time.time()
+    curve = {"train_loss": [], "val_loss": [], "val_acc": []}
+    best_acc, best_epoch, best_state = -1.0, 0, copy.deepcopy(net.state_dict())
+
+    for epoch in range(1, config.STAGE3_EPOCHS + 1):
+        if (epoch - 1) % config.STAGE3_TARGET_REFRESH == 0:
+            net.eval()
+            targets = build_targets(
+                net, probe, z_fit, y_fit, eta, config.STAGE3_GUIDED_STEPS
+            )
+            loader = DataLoader(
+                TensorDataset(z_fit, targets),
+                batch_size=config.FM_BATCH_SIZE,
+                shuffle=True,
+            )
+
+        net.train()
+        running = 0.0
+        for z_batch, target_batch in loader:
+            # Source is the original feature, target is the improved one, and
+            # the loss is Stage 2's standard flow matching between them.
+            loss = flow.fm_loss(net, z_batch, target_batch)
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+            running += loss.item() * len(z_batch)
+
+        val_loss, val_acc = evaluate_split(net, probe, z_val, y_val, steps)
+        curve["train_loss"].append(running / len(z_fit))
+        curve["val_loss"].append(val_loss)
+        curve["val_acc"].append(val_acc)
+
+        if val_acc > best_acc:
+            best_acc, best_epoch = val_acc, epoch
+            best_state = copy.deepcopy(net.state_dict())
+
+    net.load_state_dict(best_state)
+    _, top1 = evaluate_split(net, probe, z_test, y_test, steps)
+
+    method = f"fm_guided_eta{eta:g}"
+    tag = config.run_tag(dataset, encoder, method, k, seed)
+    config.CKPT.mkdir(parents=True, exist_ok=True)
+    config.CURVES.mkdir(parents=True, exist_ok=True)
+    torch.save(best_state, config.CKPT / f"{tag}.pt")
+    (config.CURVES / f"{tag}.json").write_text(json.dumps(curve))
+
+    return {
+        "method": method,
+        "top1": top1,
+        "best_val": best_acc,
+        "n_train": len(idx),
+        "epochs_run": config.STAGE3_EPOCHS,
+        "best_epoch": best_epoch,
+        "seconds": round(time.time() - started, 1),
+    }
 
 
 def check_identity() -> None:
@@ -237,10 +339,18 @@ if __name__ == "__main__":
     parser.add_argument("--check", action="store_true", help="run the M1 gate")
     parser.add_argument("--e2e", action="store_true", help="Strategy 1 sweep over lambda")
     parser.add_argument("--lam", type=float, nargs="*", help="lambda values to run")
+    parser.add_argument("--guided", action="store_true", help="Strategy 2 sweep over eta")
+    parser.add_argument("--eta", type=float, nargs="*", help="eta values to run")
+    parser.add_argument("--K", help="override the training-set size (e.g. full)")
     args = parser.parse_args()
+    k = args.K if args.K is None or args.K == "full" else int(args.K)
     if args.check:
         check_identity()
     elif args.e2e:
-        sweep(run_e2e, args.lam if args.lam else config.STAGE3_LAMBDAS)
+        sweep(run_e2e, lambda v: f"fm_e2e_lam{v:g}",
+              args.lam if args.lam else config.STAGE3_LAMBDAS, k=k)
+    elif args.guided:
+        sweep(run_guided, lambda v: f"fm_guided_eta{v:g}",
+              args.eta if args.eta else config.STAGE3_ETAS, k=k)
     else:
         parser.print_help()
