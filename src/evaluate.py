@@ -45,6 +45,10 @@ def confusion_matrix(
 # silently pull them into the Stage 2 table.
 STAGE1_HEADS = ("prototypes", "linear")
 STAGE2_HEADS = ("fm_std_T4", "fm_std_T12", "fm_roll_T4", "fm_roll_T12")
+# Stage 3 heads carry their hyperparameter in the name, so they are matched by
+# prefix; the variants of one strategy are compared and one is chosen on
+# validation.
+STAGE3_PREFIXES = ("fm_e2e_", "fm_guided_")
 
 
 def aggregate() -> pd.DataFrame:
@@ -151,10 +155,61 @@ def table_stage2_markdown() -> str:
     return "\n".join(lines) + "\n"
 
 
+def aggregate_stage3() -> pd.DataFrame:
+    """Stage 3 results, each paired with its Stage 1 *linear probe* baseline.
+
+    Note the baseline differs from Stage 2's: there the flow was compared with
+    the prototype rule, here with the trained probe that sits downstream of it.
+    """
+    stats = aggregate()
+    baseline = stats[stats["head"] == "linear"].set_index(
+        ["dataset", "encoder", "K"]
+    )["mean"]
+    is_stage3 = stats["head"].str.startswith(STAGE3_PREFIXES)
+    fm = stats[is_stage3].copy()
+    fm["baseline"] = [
+        baseline.loc[(row.dataset, row.encoder, row.K)] for row in fm.itertuples()
+    ]
+    fm["delta"] = fm["mean"] - fm["baseline"]
+    fm["strategy"] = np.where(
+        fm["head"].str.startswith("fm_e2e_"), "end-to-end", "classifier-guided"
+    )
+    return fm
+
+
+def table_stage3_markdown() -> str:
+    """Every Stage 3 variant, with its change against the Stage 1 linear probe."""
+    fm = aggregate_stage3()
+    lines = [
+        "# Stage 3 — accuracy (top-1 %, complete official test split)",
+        "",
+        "Generated from `results/runs.csv`. Bracketed values are the change against the",
+        "Stage 1 **linear probe** for the same dataset, encoder and K.",
+    ]
+    for (dataset, encoder), group in fm.groupby(["dataset", "encoder"], observed=True):
+        lines += ["", f"## {dataset} · {encoder}", ""]
+        for k, rows in group.groupby("K", observed=True):
+            lines += [
+                f"**K = {k}**",
+                "",
+                "| strategy | variant | top-1 | delta |",
+                "|---|---|---|---:|",
+                f"| — | Stage 1 linear probe | {rows['baseline'].iloc[0]:.2f} | |",
+            ]
+            for r in rows.sort_values("head").itertuples():
+                spread = "" if pd.isna(r.std) else f" ± {r.std:.2f}"
+                lines.append(
+                    f"| {r.strategy} | {r.head} | {r.mean:.2f}{spread} | {r.delta:+.2f} |"
+                )
+            lines.append("")
+    return "\n".join(lines) + "\n"
+
+
 if __name__ == "__main__":
     for name, build in (
         ("accuracy_table.md", table_markdown),
         ("accuracy_table_stage2.md", table_stage2_markdown),
+        ("accuracy_table_stage3.md", table_stage3_markdown),
     ):
         out = config.RESULTS / name
         out.write_text(build())
