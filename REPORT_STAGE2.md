@@ -2,9 +2,7 @@
 
 **Status:** complete. All 108 flow-matching runs finished; results, figures and analysis below.
 
-Builds directly on [REPORT_STAGE1.md](REPORT_STAGE1.md); design decisions are recorded in
-[IMPLEMENTATION_NOTES.md](IMPLEMENTATION_NOTES.md); the concepts are explained without
-jargon in [EXPLAINER.md](EXPLAINER.md).
+Builds directly on [REPORT_STAGE1.md](REPORT_STAGE1.md).
 
 ---
 
@@ -36,7 +34,7 @@ Both training modes receive an identical architecture, optimiser, epoch budget a
 size. The objective is the only difference between them, which is what the spec requires for
 the comparison to be fair.
 
-**Two implementation decisions**, both recorded with reasoning in `IMPLEMENTATION_NOTES.md`:
+**Two implementation decisions:**
 
 - **The flow operates on L2-normalised features.** Prototypes are unit vectors while raw
   features have norms of roughly 9–54, so on raw features the target velocity `p - z` would be

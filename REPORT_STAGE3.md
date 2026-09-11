@@ -3,9 +3,7 @@
 **Status:** complete. Both required strategies run on both datasets, plus a diagnostic at
 K=full; results, figures and analysis below.
 
-Builds on [REPORT_STAGE1.md](REPORT_STAGE1.md) and [REPORT_STAGE2.md](REPORT_STAGE2.md);
-design decisions are in [IMPLEMENTATION_NOTES.md](IMPLEMENTATION_NOTES.md); the concepts are
-explained without jargon in [EXPLAINER_STAGE3.md](EXPLAINER_STAGE3.md).
+Builds on [REPORT_STAGE1.md](REPORT_STAGE1.md) and [REPORT_STAGE2.md](REPORT_STAGE2.md).
 
 ---
 
@@ -47,7 +45,7 @@ one T. DTD has only one encoder; on Aircraft, DINOv2 is the stronger probe (67.7
 chosen because Stage 2 showed T=4 and T=12 differ by less than seed noise while T=4 is three
 times cheaper to backpropagate through.
 
-**Three implementation decisions**, recorded with reasoning in `IMPLEMENTATION_NOTES.md`:
+**Three implementation decisions:**
 
 - **The flow starts at exact identity.** The velocity network's final layer is
   zero-initialised, so `v(z, t) = 0`, every Euler step adds nothing, and `ẑ = z`. Before
